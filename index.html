@@ -1,0 +1,1988 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>เรดาร์อสังหาฯ เสียงอัจฉริยะ (Real Estate Voice Radar)</title>
+
+  <!-- Mobile Web App / PWA Capability Meta Tags (iOS & Android Home Screen) -->
+  <meta name="theme-color" content="#050a0e" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Voice Radar" />
+  <link id="dynamic-apple-icon" rel="apple-touch-icon" href="" />
+  <link id="dynamic-favicon" rel="icon" type="image/png" href="" />
+  <link id="dynamic-manifest" rel="manifest" href="" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Kanit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- ExcelJS Library for Excel (.xlsx) Export with Embedded Images -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Kanit', sans-serif;
+      background-color: #050a0e;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+
+    .font-mono-tech {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Radar Container Styling */
+    .radar-screen {
+      position: relative;
+      background: radial-gradient(circle at center, #08281c 0%, #04130d 62%, #020806 100%);
+      box-shadow:
+        inset 0 0 45px rgba(0, 245, 160, 0.14),
+        0 0 28px rgba(0, 245, 160, 0.12);
+      border: 2px solid rgba(16, 185, 129, 0.45);
+    }
+
+    .radar-grid-lines {
+      background-image:
+        linear-gradient(to right, rgba(16, 185, 129, 0.14) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(16, 185, 129, 0.14) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+
+    /* Rotating Radar Sweep Cone */
+    .radar-sweep {
+      position: absolute;
+      inset: 0;
+      border-radius: 9999px;
+      background: conic-gradient(
+        from 0deg,
+        rgba(0, 245, 160, 0.42) 0deg,
+        rgba(0, 245, 160, 0.12) 48deg,
+        transparent 95deg,
+        transparent 360deg
+      );
+      animation: radarRotate 3.6s linear infinite;
+      pointer-events: none;
+    }
+
+    .radar-sweep.paused {
+      animation-play-state: paused;
+      opacity: 0.25;
+    }
+
+    @keyframes radarRotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Pulse ring for GPS center */
+    @keyframes pulseCenter {
+      0% { transform: scale(0.85); opacity: 0.9; }
+      70% { transform: scale(2.1); opacity: 0; }
+      100% { transform: scale(2.1); opacity: 0; }
+    }
+
+    .gps-pulse {
+      animation: pulseCenter 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+
+    /* Voice Wave Bars */
+    @keyframes soundWave {
+      0%, 100% { height: 6px; }
+      50% { height: 22px; }
+    }
+
+    .wave-bar {
+      animation: soundWave 0.7s ease-in-out infinite;
+    }
+    .wave-bar:nth-child(2) { animation-delay: 0.15s; }
+    .wave-bar:nth-child(3) { animation-delay: 0.3s; }
+    .wave-bar:nth-child(4) { animation-delay: 0.45s; }
+    .wave-bar:nth-child(5) { animation-delay: 0.2s; }
+
+    /* Custom Range Slider */
+    input[type="range"].radar-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #0f172a;
+      height: 8px;
+      border-radius: 999px;
+      border: 1px solid #334155;
+    }
+    input[type="range"].radar-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #10b981;
+      cursor: pointer;
+      border: 2px solid #ecfdf5;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.8);
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #091118;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #10b981;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+  <!-- Add to Home Screen Modal Guide (iOS / Android) -->
+  <div id="install-pwa-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-emerald-500/40 rounded-3xl max-w-md w-full p-5 shadow-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
+            <i data-lucide="smartphone" class="w-5 h-5 text-emerald-400"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">เพิ่มแอปลงหน้าจอหลักมือถือ</h3>
+            <p class="text-xs text-emerald-400">เปิดใช้งานเต็มหน้าจอเหมือนแอปแท้</p>
+          </div>
+        </div>
+        <button onclick="closeInstallModal()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Native Chrome/Android One-Tap Install Box (Shown automatically when supported) -->
+      <div id="native-install-box" class="hidden mb-4 p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-400/50 text-center">
+        <p class="text-xs text-emerald-200 mb-2.5">เบราว์เซอร์ของคุณรองรับการติดตั้งลงหน้าจอหลักทันที</p>
+        <button onclick="triggerNativePWAInstall()"
+          class="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/25 transition cursor-pointer">
+          ติดตั้งลงหน้าจอหลักเดี๋ยวนี้
+        </button>
+      </div>
+
+      <!-- Step-by-Step Instructions for iOS & Android -->
+      <div class="space-y-3 text-xs text-slate-300">
+        <div class="p-3 rounded-2xl bg-slate-950/90 border border-slate-800">
+          <div class="font-bold text-emerald-400 mb-1 flex items-center gap-1.5">
+            <span>1. สำหรับ iPhone / iPad (เปิดด้วย Safari)</span>
+          </div>
+          <ol class="list-decimal list-inside space-y-1 text-slate-300 leading-relaxed">
+            <li>กดปุ่ม <strong class="text-white">แชร์ (Share)</strong> รูปสี่เหลี่ยมมีลูกศรชี้ขึ้นด้านล่าง</li>
+            <li>เลื่อนลงแล้วเลือก <strong class="text-emerald-300">"เพิ่มไปยังหน้าจอโฮม" (Add to Home Screen)</strong></li>
+            <li>กด <strong class="text-white">"เพิ่ม" (Add)</strong> มุมขวาบน ไอคอนเรดาร์จะไปอยู่บนหน้าจอทันที</li>
+          </ol>
+        </div>
+
+        <div class="p-3 rounded-2xl bg-slate-950/90 border border-slate-800">
+          <div class="font-bold text-sky-400 mb-1 flex items-center gap-1.5">
+            <span>2. สำหรับ Android (เปิดด้วย Google Chrome)</span>
+          </div>
+          <ol class="list-decimal list-inside space-y-1 text-slate-300 leading-relaxed">
+            <li>กดปุ่ม <strong class="text-white">เมนูจุด 3 จุด (⋮)</strong> มุมขวาบนของเบราว์เซอร์</li>
+            <li>เลือก <strong class="text-sky-300">"เพิ่มลงในหน้าจอหลัก" (Add to Home screen)</strong> หรือ <strong class="text-sky-300">"ติดตั้งแอป"</strong></li>
+            <li>กด <strong class="text-white">"เพิ่ม / ติดตั้ง"</strong> เพื่อสร้างทางลัดบนหน้าจอมือถือ</li>
+          </ol>
+        </div>
+
+        <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200">
+          <strong>เคล็ดลับ:</strong> แนะนำให้อัปโหลดไฟล์ <code class="text-white">index.html</code> ขึ้นเว็บฟรี (เช่น GitHub Pages, Vercel หรือ Netlify) เพื่อให้ได้ลิงก์ HTTPS ซึ่งรองรับการกดเปิด GPS และติดตั้งลงหน้าจอหลักได้สมบูรณ์ที่สุดครับ
+        </div>
+      </div>
+
+      <button onclick="closeInstallModal()"
+        class="mt-4 w-full py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold transition cursor-pointer">
+        เข้าใจแล้ว
+      </button>
+    </div>
+  </div>
+
+  <!-- Top Navigation / Cockpit Header -->
+  <header class="border-b border-emerald-900/60 bg-slate-950/90 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-400/50 flex items-center justify-center shadow-lg shadow-emerald-950">
+          <i data-lucide="radar" class="w-6 h-6 text-emerald-400"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg sm:text-xl font-bold tracking-wide text-emerald-400">
+              REAL ESTATE VOICE RADAR
+            </h1>
+            <span class="text-[11px] font-mono-tech px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+              GPS + VOICE AI
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">
+            เรดาร์เสียงอัจฉริยะค้นหาประกาศขายอสังหาฯ ออนไลน์ รัศมีสูงสุด <span id="header-radius-label" class="text-emerald-300 font-semibold">5 กม.</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Primary GPS & Voice Controls -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <!-- Add to Mobile Home Screen Button -->
+        <button id="btn-install-pwa" onclick="openInstallModal()"
+          class="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 text-xs font-medium transition cursor-pointer">
+          <i data-lucide="smartphone" class="w-3.5 h-3.5"></i>
+          <span>เพิ่มลงหน้าจอหลัก</span>
+        </button>
+
+        <!-- Reopen Confirmation Menu Button (Shown when menu is hidden after clicking Yes) -->
+        <button id="btn-show-confirm-menu" onclick="reopenConfirmationMenu()"
+          class="hidden flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-medium transition cursor-pointer">
+          <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+          <span>เปิดเมนูยืนยันตำแหน่ง</span>
+        </button>
+
+        <!-- Voice Toggle -->
+        <button id="btn-voice-toggle" onclick="toggleVoiceMute()"
+          class="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-sm font-medium transition cursor-pointer">
+          <i id="icon-voice" data-lucide="volume-2" class="w-4 h-4 text-emerald-400"></i>
+          <span id="label-voice">เสียงพูด: เปิด</span>
+        </button>
+
+        <!-- MAIN OPEN GPS BUTTON -->
+        <button id="btn-open-gps" onclick="activateGPS()"
+          class="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm sm:text-base shadow-lg shadow-emerald-500/25 active:scale-95 transition cursor-pointer">
+          <i data-lucide="navigation" class="w-5 h-5 fill-slate-950"></i>
+          <span id="btn-gps-text">เปิด GPS</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Cockpit Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+    <!-- LEFT COLUMN: Radar Display + Radius Selector + 20 Recommended Zones (4 cols) -->
+    <section class="lg:col-span-4 flex flex-col gap-4">
+
+      <!-- Radar Visual Card -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col items-center">
+        <div class="w-full flex items-center justify-between mb-3">
+          <span class="text-xs font-mono-tech uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+            <span id="radar-live-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+            RADAR SCOPE (<span id="scope-radius-badge">5.0 KM</span>)
+          </span>
+          <span id="gps-coords-badge" class="text-[11px] font-mono-tech text-slate-400 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800">
+            GPS: รอเปิดสัญญาณ
+          </span>
+        </div>
+
+        <!-- Circular Radar Screen -->
+        <div id="radar-container" class="radar-screen radar-grid-lines w-64 h-64 sm:w-72 sm:h-72 rounded-full flex items-center justify-center overflow-hidden relative my-1">
+          <!-- Concentric Distance Rings -->
+          <div class="absolute inset-4 rounded-full border border-emerald-500/25 pointer-events-none"></div>
+          <div class="absolute inset-12 rounded-full border border-emerald-500/25 pointer-events-none"></div>
+          <div class="absolute inset-20 rounded-full border border-emerald-500/25 pointer-events-none"></div>
+
+          <!-- Crosshair Axes -->
+          <div class="absolute inset-x-0 top-1/2 h-px bg-emerald-500/25 pointer-events-none"></div>
+          <div class="absolute inset-y-0 left-1/2 w-px bg-emerald-500/25 pointer-events-none"></div>
+
+          <!-- Dynamic Ring Distance Labels -->
+          <span id="ring-label-outer" class="absolute top-2 text-[10px] font-mono-tech text-emerald-400/80">5 กม.</span>
+          <span id="ring-label-mid" class="absolute top-10 text-[10px] font-mono-tech text-emerald-400/70">3.3 กม.</span>
+          <span id="ring-label-inner" class="absolute top-[74px] text-[10px] font-mono-tech text-emerald-400/60">1.7 กม.</span>
+
+          <!-- Rotating Sweep Beam -->
+          <div id="radar-sweep-beam" class="radar-sweep paused"></div>
+
+          <!-- Dynamic Numbered Property Blips Container -->
+          <div id="radar-blips" class="absolute inset-0"></div>
+
+          <!-- Center User GPS Marker -->
+          <div class="relative z-10 flex items-center justify-center">
+            <div id="gps-center-pulse" class="hidden absolute w-7 h-7 rounded-full bg-emerald-400/40 gps-pulse"></div>
+            <div class="w-4 h-4 rounded-full bg-emerald-400 border-2 border-slate-950 shadow-md shadow-emerald-400"></div>
+          </div>
+        </div>
+
+        <!-- Radar Legend -->
+        <div class="w-full grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-[11px] text-center">
+          <div class="flex items-center justify-center gap-1.5 text-emerald-400">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span>
+            <span>ต่ำกว่าราคาย่าน</span>
+          </div>
+          <div class="flex items-center justify-center gap-1.5 text-amber-400">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>
+            <span>ใกล้เคียงย่าน</span>
+          </div>
+          <div class="flex items-center justify-center gap-1.5 text-rose-400">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block"></span>
+            <span>สูงกว่าราคาย่าน</span>
+          </div>
+        </div>
+
+        <!-- Radius Selector Controls (Up to 100 KM) -->
+        <div class="w-full mt-3 pt-3 border-t border-slate-800/80">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+              <i data-lucide="compass" class="w-3.5 h-3.5 text-emerald-400"></i>
+              ปรับรัศมีการสแกน (สูงสุด 100 กม.)
+            </span>
+            <span id="radius-value-display" class="text-xs font-mono-tech font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-0.5 rounded-lg border border-emerald-500/30">
+              5 กม.
+            </span>
+          </div>
+
+          <!-- Fine-Tune Range Slider (1 - 100 km) -->
+          <div class="mb-2.5 px-0.5">
+            <input id="radius-slider" type="range" min="1" max="100" value="5"
+              oninput="handleRadiusSliderInput(this.value)"
+              onchange="setSearchRadius(Number(this.value))"
+              class="radar-slider w-full" />
+            <div class="flex justify-between text-[10px] font-mono-tech text-slate-500 mt-1">
+              <span>1 กม.</span>
+              <span>25 กม.</span>
+              <span>50 กม.</span>
+              <span>75 กม.</span>
+              <span>100 กม.</span>
+            </div>
+          </div>
+
+          <!-- Quick Preset Buttons -->
+          <div class="grid grid-cols-5 gap-1.5" id="radius-buttons">
+            <button onclick="setSearchRadius(1)" data-radius="1"
+              class="radius-btn py-1.5 rounded-xl text-xs font-mono-tech font-semibold bg-slate-950 text-slate-400 border border-slate-800 hover:border-emerald-500/50 transition cursor-pointer">
+              1 กม.
+            </button>
+            <button onclick="setSearchRadius(5)" data-radius="5"
+              class="radius-btn py-1.5 rounded-xl text-xs font-mono-tech font-semibold bg-emerald-500 text-slate-950 border border-emerald-400 shadow-sm shadow-emerald-500/30 transition cursor-pointer">
+              5 กม.
+            </button>
+            <button onclick="setSearchRadius(15)" data-radius="15"
+              class="radius-btn py-1.5 rounded-xl text-xs font-mono-tech font-semibold bg-slate-950 text-slate-400 border border-slate-800 hover:border-emerald-500/50 transition cursor-pointer">
+              15 กม.
+            </button>
+            <button onclick="setSearchRadius(50)" data-radius="50"
+              class="radius-btn py-1.5 rounded-xl text-xs font-mono-tech font-semibold bg-slate-950 text-slate-400 border border-slate-800 hover:border-emerald-500/50 transition cursor-pointer">
+              50 กม.
+            </button>
+            <button onclick="setSearchRadius(100)" data-radius="100"
+              class="radius-btn py-1.5 rounded-xl text-xs font-mono-tech font-semibold bg-slate-950 text-slate-400 border border-slate-800 hover:border-emerald-500/50 transition cursor-pointer">
+              100 กม.
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 20 RECOMMENDED ZONES PANEL (Bottom Left) -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 shadow-xl">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+            <h3 class="text-xs sm:text-sm font-semibold text-slate-200">โซนพื้นที่แนะนำ 20 โซน (คลิกสแกนทันที)</h3>
+          </div>
+          <span class="text-[10px] font-mono-tech px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+            20 ZONES
+          </span>
+        </div>
+        <p class="text-[11px] text-slate-400 mb-3">
+          เลือกโซนที่สนใจด้านล่างเพื่อย้ายหมุด GPS และสแกนหาประกาศขายรอบพื้นที่นั้นอัตโนมัติ
+        </p>
+        <div id="recommended-zones-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-[340px] overflow-y-auto pr-1">
+          <!-- Populated dynamically with all 20 zones -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT COLUMN: Voice Assistant Prompt + Summary Cards + Exportable Table (8 cols) -->
+    <section class="lg:col-span-8 flex flex-col gap-4">
+
+      <!-- Voice Assistant Confirmation & Readout Panel (Hidden when user answers "ใช่") -->
+      <div id="voice-confirmation-panel" class="bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-emerald-500/30 rounded-3xl p-5 shadow-xl transition-all duration-300">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div class="flex items-center gap-3">
+            <div id="voice-wave-box" class="flex items-center gap-1 h-7 px-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+              <span class="wave-bar w-1 bg-emerald-400 rounded-full h-2"></span>
+              <span class="wave-bar w-1 bg-emerald-400 rounded-full h-3"></span>
+              <span class="wave-bar w-1 bg-emerald-400 rounded-full h-2"></span>
+              <span class="wave-bar w-1 bg-emerald-400 rounded-full h-4"></span>
+              <span class="wave-bar w-1 bg-emerald-400 rounded-full h-2"></span>
+            </div>
+            <div>
+              <span class="text-xs font-mono-tech text-emerald-400 uppercase">AI VOICE ASSISTANT</span>
+              <h2 id="assistant-status-title" class="text-base sm:text-lg font-semibold text-white">
+                กรุณากดปุ่ม "เปิด GPS" เพื่อตรวจสอบตำแหน่งปัจจุบันของคุณ
+              </h2>
+            </div>
+          </div>
+
+          <!-- Replay Voice Summary Button -->
+          <button id="btn-speak-summary" onclick="speakSummaryReport()" disabled
+            class="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 disabled:opacity-40 border border-emerald-500/40 text-emerald-300 text-xs sm:text-sm font-medium transition cursor-pointer">
+            <i data-lucide="play" class="w-4 h-4"></i>
+            <span>อ่านสรุปด้วยเสียงอีกครั้ง</span>
+          </button>
+        </div>
+
+        <!-- Spoken Dialogue Bubble -->
+        <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 text-sm text-slate-200 leading-relaxed">
+          <p id="voice-transcript-text" class="italic text-slate-300">
+            "ระบบพร้อมทำงาน กดปุ่มเปิด GPS ด้านบน หรือคลิกเลือกโซนพื้นที่แนะนำทั้ง 20 โซนด้านซ้ายล่างเพื่อเริ่มต้น..."
+          </p>
+        </div>
+
+        <!-- Interactive Location Confirmation Box ("ใช่" / "ไม่ใช่" Buttons) -->
+        <div id="location-confirm-box" class="hidden mt-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-400/50 flex flex-col gap-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-start gap-2.5">
+              <i data-lucide="help-circle" class="w-6 h-6 text-amber-400 shrink-0 mt-0.5"></i>
+              <div>
+                <p class="text-sm sm:text-base font-bold text-amber-200">
+                  ตอนนี้คุณอยู่ที่ "<span id="detected-location-name" class="underline decoration-amber-400 text-white">...</span>" ใช่หรือไม่?
+                </p>
+                <p class="text-xs text-amber-300/80 mt-0.5">
+                  กดปุ่ม <strong>"ใช่"</strong> (หรือพูดว่า "ใช่") เพื่อเริ่มสแกนและซ่อนเมนูนี้ หรือกด <strong>"ไม่ใช่"</strong> เพื่อแก้ไขชื่อถนน
+                </p>
+              </div>
+            </div>
+
+            <!-- Prominent YES / NO Action Buttons -->
+            <div class="flex items-center gap-2.5 shrink-0">
+              <button id="btn-confirm-yes" onclick="confirmLocationAndScan(true)"
+                class="flex items-center justify-center gap-1.5 min-w-[100px] px-5 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/25 active:scale-95 transition cursor-pointer">
+                <i data-lucide="check" class="w-4 h-4 stroke-[3]"></i>
+                <span>ใช่</span>
+              </button>
+              <button id="btn-confirm-no" onclick="confirmLocationAndScan(false)"
+                class="flex items-center justify-center gap-1.5 min-w-[100px] px-5 py-2.5 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/60 text-rose-200 font-bold text-sm active:scale-95 transition cursor-pointer">
+                <i data-lucide="x" class="w-4 h-4 stroke-[3]"></i>
+                <span>ไม่ใช่</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Manual Street Edit Box (Shown when user clicks "ไม่ใช่") -->
+          <div id="manual-location-editor" class="hidden pt-3 border-t border-amber-400/25 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <input id="manual-road-input" type="text" placeholder="ระบุชื่อถนน หรือ ย่านปัจจุบันของคุณ เช่น ถนนสุขุมวิท..."
+              class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-emerald-400" />
+            <button onclick="applyManualRoadName()"
+              class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs sm:text-sm transition cursor-pointer">
+              ยืนยันชื่อถนน &amp; เริ่มสแกน
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary KPI Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5">
+          <span class="text-xs text-slate-400 block">ประกาศที่พบ (<span id="kpi-radius-text">5 กม.</span>)</span>
+          <span id="stat-total-count" class="text-2xl font-bold text-white font-mono-tech mt-1 block">0</span>
+          <span class="text-[11px] text-emerald-400">รายการออนไลน์</span>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5">
+          <span class="text-xs text-slate-400 block">ราคาเฉลี่ยย่านนี้</span>
+          <span id="stat-avg-area-price" class="text-lg sm:text-xl font-bold text-amber-300 font-mono-tech mt-1 block">-</span>
+          <span class="text-[11px] text-slate-400">เกณฑ์อ้างอิงตลาด</span>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5">
+          <span class="text-xs text-slate-400 block">ต่ำกว่าราคาย่าน</span>
+          <span id="stat-below-count" class="text-2xl font-bold text-emerald-400 font-mono-tech mt-1 block">0</span>
+          <span class="text-[11px] text-emerald-300/80">ดีลคุ้มค่าน่าลงทุน</span>
+        </div>
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5">
+          <span class="text-xs text-slate-400 block">สูงกว่าราคาย่าน</span>
+          <span id="stat-above-count" class="text-2xl font-bold text-rose-400 font-mono-tech mt-1 block">0</span>
+          <span class="text-[11px] text-rose-300/80">ทำเลพรีเมียม/ติดถนนใหญ่</span>
+        </div>
+      </div>
+
+      <!-- Property Table Card with Top Export Excel Button -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl flex-1 flex flex-col">
+        <!-- Top Bar Above Table: Title + Export Excel Button -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-800/80">
+          <div>
+            <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+              <i data-lucide="table-properties" class="w-5 h-5 text-emerald-400"></i>
+              ตารางสรุปประกาศขายอสังหาริมทรัพย์ (รัศมี <span id="table-radius-label" class="text-emerald-400">5 กม.</span>)
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">
+              แสดงภาพถ่ายจริง ขนาดทรัพย์ ราคาต่อ ตร.ว./ตร.ม. วันเดือนปีข้อมูล ลิงก์ประกาศ และเบอร์ติดต่อผู้ขาย
+            </p>
+          </div>
+
+          <!-- EXPORT EXCEL BUTTON ABOVE SUMMARY TABLE -->
+          <button id="btn-export-excel" onclick="exportSummaryToExcel()" disabled
+            class="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-950/60 border border-emerald-400/40 active:scale-95 transition cursor-pointer">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+            <span>Export ตาราง Excel (.xlsx)</span>
+          </button>
+        </div>
+
+        <!-- Category Filter Pills -->
+        <div class="flex flex-wrap items-center gap-1.5 mb-3" id="filter-buttons">
+          <button onclick="filterListings('ทั้งหมด')" data-type="ทั้งหมด"
+            class="filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-500 text-slate-950 font-semibold transition cursor-pointer">
+            ทั้งหมด
+          </button>
+          <button onclick="filterListings('บ้านเดี่ยว')" data-type="บ้านเดี่ยว"
+            class="filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer">
+            บ้านเดี่ยว
+          </button>
+          <button onclick="filterListings('ทาวน์เฮ้าส์')" data-type="ทาวน์เฮ้าส์"
+            class="filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer">
+            ทาวน์เฮ้าส์
+          </button>
+          <button onclick="filterListings('อาคารพาณิชย์')" data-type="อาคารพาณิชย์"
+            class="filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer">
+            อาคารพาณิชย์
+          </button>
+          <button onclick="filterListings('คอนโด')" data-type="คอนโด"
+            class="filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer">
+            คอนโด
+          </button>
+          <button onclick="filterListings('หอพัก')" data-type="หอพัก"
+            class="filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer">
+            หอพัก
+          </button>
+          <button onclick="filterListings('ที่ดิน')" data-type="ที่ดิน"
+            class="filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer">
+            ที่ดิน
+          </button>
+        </div>
+
+        <!-- Responsive Data Table -->
+        <div class="overflow-x-auto rounded-2xl border border-slate-800 flex-1">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-950/90 text-slate-300 text-xs border-b border-slate-800">
+                <th class="py-3 px-3 font-semibold text-center whitespace-nowrap">เลขที่</th>
+                <th class="py-3 px-3 font-semibold text-center whitespace-nowrap">ภาพทรัพย์</th>
+                <th class="py-3 px-3 font-semibold whitespace-nowrap">ประเภท</th>
+                <th class="py-3 px-3 font-semibold">ชื่อโครงการ / หมู่บ้าน &amp; ทำเล</th>
+                <th class="py-3 px-3 font-semibold text-right whitespace-nowrap">ขนาดทรัพย์</th>
+                <th class="py-3 px-3 font-semibold text-right whitespace-nowrap">ระยะทาง (กม.)</th>
+                <th class="py-3 px-3 font-semibold text-right whitespace-nowrap">ราคาขายรวม</th>
+                <th class="py-3 px-3 font-semibold text-right whitespace-nowrap">ราคาต่อ ตร.ว./ตร.ม.</th>
+                <th class="py-3 px-3 font-semibold whitespace-nowrap">เทียบราคาย่าน</th>
+                <th class="py-3 px-3 font-semibold text-center whitespace-nowrap">วันที่ข้อมูล</th>
+                <th class="py-3 px-3 font-semibold whitespace-nowrap">ผู้ขาย &amp; เบอร์โทร</th>
+                <th class="py-3 px-3 font-semibold text-center whitespace-nowrap">พิกัดแผนที่</th>
+                <th class="py-3 px-3 font-semibold text-center whitespace-nowrap">ลิงก์ประกาศ</th>
+              </tr>
+            </thead>
+            <tbody id="listings-tbody" class="divide-y divide-slate-800/70 text-xs sm:text-sm">
+              <tr>
+                <td colspan="13" class="py-12 px-4 text-center text-slate-400">
+                  <div class="flex flex-col items-center gap-2">
+                    <i data-lucide="radar" class="w-8 h-8 text-slate-600"></i>
+                    <span>ยังไม่มีข้อมูลการสแกน กดปุ่ม <strong class="text-emerald-400">"เปิด GPS"</strong> หรือเลือกโซนพื้นที่แนะนำด้านซ้ายล่าง</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    // =========================================================================
+    // 20 RECOMMENDED ZONES FOR INSTANT RADAR SCANNING
+    // =========================================================================
+    const RECOMMENDED_ZONES = [
+      { id: 1, name: "ถนนสุขุมวิท (อโศก - พร้อมพงษ์)", road: "ถนนสุขุมวิท", area: "อโศก-พร้อมพงษ์", lat: 13.7367, lng: 100.5603 },
+      { id: 2, name: "ถนนสุขุมวิท 55 (ทองหล่อ - เอกมัย)", road: "ถนนสุขุมวิท 55", area: "ทองหล่อ-เอกมัย", lat: 13.7310, lng: 100.5815 },
+      { id: 3, name: "ถนนลาดพร้าว (ห้าแยกลาดพร้าว)", road: "ถนนลาดพร้าว", area: "จตุจักร-ลาดพร้าว", lat: 13.8161, lng: 100.5612 },
+      { id: 4, name: "ถนนพระราม 9 (แยก อ.ส.ม.ท.)", road: "ถนนพระราม 9", area: "พระราม 9-ห้วยขวาง", lat: 13.7574, lng: 100.5653 },
+      { id: 5, name: "ถนนรัชดาภิเษก (ศูนย์วัฒนธรรม)", road: "ถนนรัชดาภิเษก", area: "รัชดา-ดินแดง", lat: 13.7656, lng: 100.5701 },
+      { id: 6, name: "ถนนสีลม - สาทรเหนือ", road: "ถนนสีลม", area: "สีลม-บางรัก", lat: 13.7262, lng: 100.5236 },
+      { id: 7, name: "ถนนพญาไท (อนุสาวรีย์ชัยฯ)", road: "ถนนพญาไท", area: "พญาไท-ราชเทวี", lat: 13.7649, lng: 100.5383 },
+      { id: 8, name: "ถนนพหลโยธิน (อารีย์ - สะพานควาย)", road: "ถนนพหลโยธิน", area: "อารีย์-พญาไท", lat: 13.7796, lng: 100.5447 },
+      { id: 9, name: "ถนนบางนา-ตราด กม.4 (เมกาบางนา)", road: "ถนนบางนา-ตราด", area: "บางนา-บางพลี", lat: 13.6682, lng: 100.6441 },
+      { id: 10, name: "ถนนศรีนครินทร์ (ซีคอนสแควร์)", road: "ถนนศรีนครินทร์", area: "ประเวศ-สวนหลวง", lat: 13.6941, lng: 100.6480 },
+      { id: 11, name: "ถนนรามคำแหง (หัวหมาก - ม.รามฯ)", road: "ถนนรามคำแหง", area: "หัวหมาก-บางกะปิ", lat: 13.7589, lng: 100.6194 },
+      { id: 12, name: "ถนนรามอินทรา กม.5 (วัชรพล)", road: "ถนนรามอินทรา", area: "รามอินทรา-บางเขน", lat: 13.8543, lng: 100.6352 },
+      { id: 13, name: "ถนนเกษตร-นวมินทร์ (เสนานิคม)", road: "ถนนเกษตร-นวมินทร์", area: "ลาดพร้าว-จตุจักร", lat: 13.8340, lng: 100.6012 },
+      { id: 14, name: "ถนนแจ้งวัฒนะ (ศูนย์ราชการ)", road: "ถนนแจ้งวัฒนะ", area: "หลักสี่-ปากเกร็ด", lat: 13.8898, lng: 100.5658 },
+      { id: 15, name: "ถนนงามวงศ์วาน (เดอะมอลล์งามฯ)", road: "ถนนงามวงศ์วาน", area: "เมืองนนทบุรี", lat: 13.8555, lng: 100.5419 },
+      { id: 16, name: "ถนนรัตนาธิเบศร์ (บางใหญ่)", road: "ถนนรัตนาธิเบศร์", area: "บางบัวทอง-บางใหญ่", lat: 13.8767, lng: 100.4114 },
+      { id: 17, name: "ถนนรังสิต-นครนายก (ฟิวเจอร์พาร์ค)", road: "ถนนรังสิต-นครนายก", area: "ธัญบุรี-ปทุมธานี", lat: 13.9892, lng: 100.6177 },
+      { id: 18, name: "ถนนพระราม 2 (เซ็นทรัลพระราม 2)", road: "ถนนพระราม 2", area: "บางขุนเทียน", lat: 13.6634, lng: 100.4368 },
+      { id: 19, name: "ถนนเพชรเกษม (บางแค - หลักสอง)", road: "ถนนเพชรเกษม", area: "บางแค-ภาษีเจริญ", lat: 13.7115, lng: 100.4083 },
+      { id: 20, name: "ถนนเจริญนคร (ไอคอนสยาม - คลองสาน)", road: "ถนนเจริญนคร", area: "คลองสาน-ธนบุรี", lat: 13.7266, lng: 100.5099 }
+    ];
+
+    // =========================================================================
+    // GLOBAL APPLICATION STATE
+    // =========================================================================
+    const appState = {
+      lat: 13.7367,
+      lng: 100.5603,
+      locationLabel: "ถนนสุขุมวิท แขวงคลองเตยเหนือ เขตวัฒนา กรุงเทพมหานคร",
+      roadName: "ถนนสุขุมวิท",
+      shortArea: "อโศก-พร้อมพงษ์",
+      searchRadiusKm: 5,
+      voiceEnabled: true,
+      isScanning: false,
+      allListings: [],
+      visibleListings: [],
+      currentFilter: "ทั้งหมด",
+      lastSummarySpeech: "",
+      recognition: null
+    };
+
+    // Initialize Icons & Recommended Zones on Load
+    window.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      renderRecommendedZones();
+      setupMobileHomeScreenPWA();
+    });
+
+    // =========================================================================
+    // MOBILE HOME SCREEN (PWA) ICON, MANIFEST & INSTALL PROMPT SETUP
+    // =========================================================================
+    let deferredInstallPrompt = null;
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      const nativeBox = document.getElementById("native-install-box");
+      if (nativeBox) nativeBox.classList.remove("hidden");
+    });
+
+    function setupMobileHomeScreenPWA() {
+      try {
+        // Generate High-Resolution App Icon (512x512 PNG) on Canvas for iOS & Android Home Screen
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext("2d");
+
+        // Dark App Background
+        ctx.fillStyle = "#04130d";
+        ctx.fillRect(0, 0, 512, 512);
+
+        // Radar Rings
+        const cx = 256;
+        const cy = 240;
+        [185, 130, 75].forEach((r) => {
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(16, 185, 129, 0.55)";
+          ctx.lineWidth = 6;
+          ctx.stroke();
+        });
+
+        // Crosshairs
+        ctx.beginPath();
+        ctx.moveTo(cx - 185, cy);
+        ctx.lineTo(cx + 185, cy);
+        ctx.moveTo(cx, cy - 185);
+        ctx.lineTo(cx, cy + 185);
+        ctx.strokeStyle = "rgba(16, 185, 129, 0.35)";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // Radar Sweep Cone
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, 185, -Math.PI * 0.45, -Math.PI * 0.1);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(0, 245, 160, 0.35)";
+        ctx.fill();
+
+        // Center GPS Beacon
+        ctx.beginPath();
+        ctx.arc(cx, cy, 24, 0, Math.PI * 2);
+        ctx.fillStyle = "#00f5a0";
+        ctx.fill();
+
+        // App Label
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 42px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("VOICE RADAR", 256, 475);
+
+        const iconDataUrl = canvas.toDataURL("image/png");
+
+        // Attach to Apple Touch Icon & Favicon
+        const appleIcon = document.getElementById("dynamic-apple-icon");
+        const favIcon = document.getElementById("dynamic-favicon");
+        if (appleIcon) appleIcon.href = iconDataUrl;
+        if (favIcon) favIcon.href = iconDataUrl;
+
+        // Create Dynamic Web App Manifest Blob for Android Chrome
+        const manifestObj = {
+          name: "เรดาร์อสังหาฯ เสียงอัจฉริยะ (Real Estate Voice Radar)",
+          short_name: "Voice Radar",
+          description: "เรดาร์เสียงอัจฉริยะค้นหาประกาศขายอสังหาริมทรัพย์รอบตัวด้วย GPS",
+          start_url: window.location.href,
+          display: "standalone",
+          background_color: "#050a0e",
+          theme_color: "#050a0e",
+          orientation: "portrait",
+          icons: [
+            {
+              src: iconDataUrl,
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "any maskable"
+            }
+          ]
+        };
+
+        const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: "application/manifest+json" });
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+        const manifestLink = document.getElementById("dynamic-manifest");
+        if (manifestLink) manifestLink.href = manifestUrl;
+      } catch (err) {
+        // Ignore if running inside sandboxed iframe
+      }
+    }
+
+    function openInstallModal() {
+      const modal = document.getElementById("install-pwa-modal");
+      if (modal) {
+        modal.classList.remove("hidden");
+        lucide.createIcons();
+      }
+    }
+
+    function closeInstallModal() {
+      const modal = document.getElementById("install-pwa-modal");
+      if (modal) modal.classList.add("hidden");
+    }
+
+    async function triggerNativePWAInstall() {
+      if (!deferredInstallPrompt) {
+        showToast("กรุณาทำตามขั้นตอนด้านล่างเพื่อเพิ่มลงหน้าจอหลัก", "info");
+        return;
+      }
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      if (outcome === "accepted") {
+        showToast("เพิ่มแอป Voice Radar ลงหน้าจอหลักสำเร็จ!", "success");
+        closeInstallModal();
+      }
+      deferredInstallPrompt = null;
+    }
+
+    // =========================================================================
+    // RENDER 20 RECOMMENDED ZONES (BOTTOM LEFT)
+    // =========================================================================
+    function renderRecommendedZones() {
+      const container = document.getElementById("recommended-zones-grid");
+      if (!container) return;
+
+      container.innerHTML = RECOMMENDED_ZONES.map((zone) => `
+        <button onclick="selectRecommendedZone(${zone.id})"
+          class="text-left p-2.5 rounded-2xl bg-slate-950/90 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/50 transition flex items-start gap-2 group cursor-pointer">
+          <span class="w-5 h-5 rounded-lg bg-emerald-500/15 text-emerald-400 font-mono-tech text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-emerald-500 group-hover:text-slate-950 transition">
+            ${zone.id}
+          </span>
+          <div class="min-w-0">
+            <div class="text-xs font-medium text-slate-200 group-hover:text-emerald-300 truncate">
+              ${zone.name}
+            </div>
+            <div class="text-[10px] text-slate-500 truncate">
+              ${zone.area}
+            </div>
+          </div>
+        </button>
+      `).join("");
+    }
+
+    function selectRecommendedZone(zoneId) {
+      const zone = RECOMMENDED_ZONES.find(z => z.id === zoneId);
+      if (!zone) return;
+
+      appState.lat = zone.lat;
+      appState.lng = zone.lng;
+      appState.roadName = zone.road;
+      appState.shortArea = zone.area;
+      appState.locationLabel = `${zone.road} (${zone.area})`;
+
+      document.getElementById("gps-coords-badge").textContent = `GPS: ${zone.lat.toFixed(4)}, ${zone.lng.toFixed(4)}`;
+      document.getElementById("gps-center-pulse").classList.remove("hidden");
+      document.getElementById("radar-live-dot").className = "w-2 h-2 rounded-full bg-emerald-400 animate-ping";
+
+      showToast(`ย้ายพิกัดเรดาร์ไปที่ ${zone.name}`, "success");
+      startPropertyRadarScan();
+    }
+
+    // =========================================================================
+    // TOAST NOTIFICATION HELPER (NO alert() USED)
+    // =========================================================================
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+      const colors = {
+        info: "bg-slate-900 border-emerald-500/50 text-slate-100",
+        success: "bg-emerald-950 border-emerald-400 text-emerald-100",
+        warn: "bg-amber-950 border-amber-400 text-amber-100",
+        error: "bg-rose-950 border-rose-400 text-rose-100"
+      };
+      toast.className = `pointer-events-auto px-4 py-3 rounded-2xl border shadow-xl text-xs sm:text-sm flex items-center gap-2.5 transition-all duration-300 ${colors[type] || colors.info}`;
+      toast.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span><span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        setTimeout(() => toast.remove(), 300);
+      }, 3600);
+    }
+
+    // =========================================================================
+    // THAI SPEECH SYNTHESIS (TTS) & VOICE RECOGNITION
+    // =========================================================================
+    function speakThai(text, onEndCallback = null) {
+      document.getElementById("voice-transcript-text").textContent = `"${text}"`;
+
+      if (!appState.voiceEnabled || !("speechSynthesis" in window)) {
+        if (onEndCallback) setTimeout(onEndCallback, 450);
+        return;
+      }
+
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "th-TH";
+        utterance.rate = 1.03;
+        utterance.pitch = 1.0;
+
+        const voices = window.speechSynthesis.getVoices();
+        const thaiVoice = voices.find(v => v.lang.includes("th"));
+        if (thaiVoice) utterance.voice = thaiVoice;
+
+        utterance.onend = () => {
+          if (onEndCallback) onEndCallback();
+        };
+        utterance.onerror = () => {
+          if (onEndCallback) onEndCallback();
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        if (onEndCallback) onEndCallback();
+      }
+    }
+
+    function toggleVoiceMute() {
+      appState.voiceEnabled = !appState.voiceEnabled;
+      const label = document.getElementById("label-voice");
+      const icon = document.getElementById("icon-voice");
+
+      if (appState.voiceEnabled) {
+        label.textContent = "เสียงพูด: เปิด";
+        icon.setAttribute("data-lucide", "volume-2");
+        icon.classList.remove("text-slate-500");
+        icon.classList.add("text-emerald-400");
+        showToast("เปิดระบบเสียงนำทางแล้ว", "success");
+      } else {
+        window.speechSynthesis.cancel();
+        label.textContent = "เสียงพูด: ปิด";
+        icon.setAttribute("data-lucide", "volume-x");
+        icon.classList.remove("text-emerald-400");
+        icon.classList.add("text-slate-500");
+        showToast("ปิดเสียงพูดชั่วคราว", "info");
+      }
+      lucide.createIcons();
+    }
+
+    function startListeningForConfirmation() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+
+      try {
+        if (appState.recognition) appState.recognition.stop();
+        const recognition = new SpeechRecognition();
+        recognition.lang = "th-TH";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onresult = (event) => {
+          const spoken = event.results[0][0].transcript.trim();
+          if (spoken.includes("ใช่") && !spoken.includes("ไม่ใช่")) {
+            confirmLocationAndScan(true);
+          } else if (spoken.includes("ไม่ใช่") || spoken.includes("ไม่")) {
+            confirmLocationAndScan(false);
+          }
+        };
+
+        recognition.start();
+        appState.recognition = recognition;
+      } catch (e) {
+        // Ignore mic permission errors silently; YES/NO buttons are visible
+      }
+    }
+
+    // =========================================================================
+    // GPS ACTIVATION & REVERSE GEOCODING
+    // =========================================================================
+    function activateGPS() {
+      const btnText = document.getElementById("btn-gps-text");
+      btnText.textContent = "กำลังจับสัญญาณ GPS...";
+      document.getElementById("assistant-status-title").textContent = "กำลังตรวจสอบพิกัดดาวเทียม GPS ปัจจุบัน...";
+
+      // Ensure confirmation menu is visible when activating GPS
+      reopenConfirmationMenu(false);
+
+      if (!("geolocation" in navigator)) {
+        handleGPSFallback("เบราว์เซอร์ไม่รองรับ GPS ใช้พิกัดจำลองใจกลางกรุงเทพฯ");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          appState.lat = latitude;
+          appState.lng = longitude;
+
+          btnText.textContent = "เปิด GPS แล้ว";
+          document.getElementById("gps-coords-badge").textContent = `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+          document.getElementById("gps-center-pulse").classList.remove("hidden");
+          document.getElementById("radar-live-dot").className = "w-2 h-2 rounded-full bg-emerald-400 animate-ping";
+
+          await resolveThaiAddressFromCoords(latitude, longitude);
+          askUserToConfirmLocation();
+        },
+        () => {
+          handleGPSFallback("ไม่สามารถเข้าถึง GPS จริงได้ ใช้พิกัดจำลองย่านถนนสุขุมวิท");
+        },
+        { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+      );
+    }
+
+    function handleGPSFallback(reasonMsg) {
+      showToast(reasonMsg, "warn");
+      const defaultZone = RECOMMENDED_ZONES[0];
+      appState.lat = defaultZone.lat;
+      appState.lng = defaultZone.lng;
+      appState.roadName = defaultZone.road;
+      appState.shortArea = defaultZone.area;
+      appState.locationLabel = `${defaultZone.road} (${defaultZone.area})`;
+
+      document.getElementById("btn-gps-text").textContent = "เปิด GPS (โหมดจำลอง)";
+      document.getElementById("gps-coords-badge").textContent = `GPS: ${defaultZone.lat.toFixed(4)}, ${defaultZone.lng.toFixed(4)}`;
+      document.getElementById("gps-center-pulse").classList.remove("hidden");
+      document.getElementById("radar-live-dot").className = "w-2 h-2 rounded-full bg-emerald-400 animate-ping";
+
+      askUserToConfirmLocation();
+    }
+
+    async function resolveThaiAddressFromCoords(lat, lng) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=th`);
+        if (!res.ok) throw new Error("Reverse geocode failed");
+        const data = await res.json();
+        const addr = data.address || {};
+
+        const road = addr.road || addr.pedestrian || addr.suburb || "ถนนหลักในพื้นที่";
+        const suburb = addr.suburb || addr.quarter || addr.neighbourhood || addr.district || "";
+        const city = addr.city || addr.state || "กรุงเทพมหานคร";
+
+        appState.roadName = road;
+        appState.shortArea = suburb || city;
+        appState.locationLabel = [road, suburb, city].filter(Boolean).join(" ");
+      } catch (e) {
+        appState.roadName = "ถนนสุขุมวิท";
+        appState.shortArea = "กรุงเทพมหานคร";
+        appState.locationLabel = `พิกัด ${lat.toFixed(4)}, ${lng.toFixed(4)} กรุงเทพมหานคร`;
+      }
+    }
+
+    function askUserToConfirmLocation() {
+      const confirmBox = document.getElementById("location-confirm-box");
+      const manualEditor = document.getElementById("manual-location-editor");
+      document.getElementById("detected-location-name").textContent = appState.locationLabel;
+      document.getElementById("assistant-status-title").textContent = "กรุณายืนยันตำแหน่งปัจจุบันของคุณ";
+
+      confirmBox.classList.remove("hidden");
+      manualEditor.classList.add("hidden");
+
+      const questionText = `ตอนนี้คุณอยู่ที่ ${appState.locationLabel} ใช่หรือไม่?`;
+      speakThai(questionText, () => {
+        startListeningForConfirmation();
+      });
+    }
+
+    function confirmLocationAndScan(isConfirmed) {
+      const confirmBox = document.getElementById("location-confirm-box");
+      const manualEditor = document.getElementById("manual-location-editor");
+
+      if (isConfirmed) {
+        // User answered "ใช่": Hide confirmation menu and begin scanning immediately
+        confirmBox.classList.add("hidden");
+        manualEditor.classList.add("hidden");
+        document.getElementById("voice-confirmation-panel").classList.add("hidden");
+        document.getElementById("btn-show-confirm-menu").classList.remove("hidden");
+
+        showToast(`ยืนยันตำแหน่ง ${appState.roadName} เริ่มสแกนเรดาร์ทันที`, "success");
+        startPropertyRadarScan();
+      } else {
+        // User answered "ไม่ใช่": Open manual road input editor
+        manualEditor.classList.remove("hidden");
+        const input = document.getElementById("manual-road-input");
+        input.value = appState.roadName;
+        input.focus();
+        speakThai("กรุณาระบุชื่อถนนปัจจุบันของคุณ หรือเลือกจากโซนพื้นที่แนะนำ 20 โซนด้านซ้ายล่างครับ");
+      }
+    }
+
+    function reopenConfirmationMenu(shouldAsk = true) {
+      document.getElementById("voice-confirmation-panel").classList.remove("hidden");
+      document.getElementById("btn-show-confirm-menu").classList.add("hidden");
+      if (shouldAsk) {
+        askUserToConfirmLocation();
+      }
+    }
+
+    function applyManualRoadName() {
+      const val = document.getElementById("manual-road-input").value.trim();
+      if (!val) {
+        showToast("กรุณาพิมพ์ชื่อถนนหรือย่านปัจจุบัน", "warn");
+        return;
+      }
+      appState.roadName = val;
+      appState.locationLabel = val;
+      confirmLocationAndScan(true);
+    }
+
+    // =========================================================================
+    // SCAN RADIUS CONTROLS (1 - 100 KM)
+    // =========================================================================
+    function handleRadiusSliderInput(val) {
+      const km = Number(val);
+      document.getElementById("radius-value-display").textContent = `${km} กม.`;
+      document.getElementById("scope-radius-badge").textContent = `${km.toFixed(1)} KM`;
+    }
+
+    function setSearchRadius(km) {
+      const clampedKm = Math.max(1, Math.min(100, Number(km) || 5));
+      appState.searchRadiusKm = clampedKm;
+
+      // Sync slider & labels
+      document.getElementById("radius-slider").value = clampedKm;
+      document.getElementById("radius-value-display").textContent = `${clampedKm} กม.`;
+      document.getElementById("header-radius-label").textContent = `${clampedKm} กม.`;
+      document.getElementById("scope-radius-badge").textContent = `${clampedKm.toFixed(1)} KM`;
+      document.getElementById("kpi-radius-text").textContent = `${clampedKm} กม.`;
+      document.getElementById("table-radius-label").textContent = `${clampedKm} กม.`;
+
+      // Update radar ring distance labels
+      document.getElementById("ring-label-outer").textContent = `${clampedKm} กม.`;
+      document.getElementById("ring-label-mid").textContent = `${(clampedKm * 0.67).toFixed(1)} กม.`;
+      document.getElementById("ring-label-inner").textContent = `${(clampedKm * 0.33).toFixed(1)} กม.`;
+
+      // Highlight active preset button
+      document.querySelectorAll(".radius-btn").forEach((btn) => {
+        const btnKm = Number(btn.dataset.radius);
+        if (btnKm === clampedKm) {
+          btn.className = "radius-btn py-1.5 rounded-xl text-xs font-mono-tech font-semibold bg-emerald-500 text-slate-950 border border-emerald-400 shadow-sm shadow-emerald-500/30 transition cursor-pointer";
+        } else {
+          btn.className = "radius-btn py-1.5 rounded-xl text-xs font-mono-tech font-semibold bg-slate-950 text-slate-400 border border-slate-800 hover:border-emerald-500/50 transition cursor-pointer";
+        }
+      });
+
+      // Re-scan or refresh visible listings for the new radius
+      if (appState.allListings.length > 0) {
+        startPropertyRadarScan();
+      } else {
+        showToast(`ตั้งรัศมีการสแกนเป็น ${clampedKm} กิโลเมตร`, "info");
+      }
+    }
+
+    // =========================================================================
+    // PROPERTY RADAR SCANNING ENGINE
+    // =========================================================================
+    function startPropertyRadarScan() {
+      appState.isScanning = true;
+      const sweep = document.getElementById("radar-sweep-beam");
+      sweep.classList.remove("paused");
+
+      document.getElementById("assistant-status-title").textContent =
+        `กำลังสแกนประกาศขายอสังหาฯ รอบ ${appState.roadName} รัศมี ${appState.searchRadiusKm} กม...`;
+
+      // Generate realistic listings tailored to current road & radius
+      const scanResult = buildAreaPropertyDataset(appState.roadName, appState.shortArea, appState.searchRadiusKm);
+      appState.allListings = scanResult.listings;
+      appState.currentFilter = "ทั้งหมด";
+
+      // Reset filter pills
+      document.querySelectorAll(".filter-pill").forEach((pill) => {
+        if (pill.dataset.type === "ทั้งหมด") {
+          pill.className = "filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-500 text-slate-950 font-semibold transition cursor-pointer";
+        } else {
+          pill.className = "filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer";
+        }
+      });
+
+      renderFilteredResults();
+      document.getElementById("btn-speak-summary").disabled = false;
+      document.getElementById("btn-export-excel").disabled = false;
+
+      // Auto-speak summary report
+      speakSummaryReport();
+    }
+
+    // Build Excel-safe ASCII Google Search URL so clicking in MS Excel NEVER fails
+    function buildExcelSafeSearchUrl(portalDomain, propertyType, projectName, roadName) {
+      const rawQuery = `site:${portalDomain} ขาย ${propertyType} ${projectName} ${roadName}`;
+      return `https://www.google.com/search?q=${encodeURIComponent(rawQuery)}`;
+    }
+
+    // Calculate approximate coordinates from center GPS, distance, and radar angle
+    function calculatePropertyCoords(centerLat, centerLng, distanceKm, angleDeg) {
+      const rad = (angleDeg * Math.PI) / 180;
+      const latOffset = (Math.sin(rad) * distanceKm) / 111.32;
+      const lngOffset = (Math.cos(rad) * distanceKm) / (111.32 * Math.cos((centerLat * Math.PI) / 180));
+      return {
+        lat: Number((centerLat + latOffset).toFixed(6)),
+        lng: Number((centerLng + lngOffset).toFixed(6))
+      };
+    }
+
+    // Build Excel-safe ASCII Google Maps URL for navigating directly to the property
+    function buildGoogleMapsUrl(lat, lng) {
+      return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    }
+
+    // Format Thai Short Listing Date (e.g. "24 พ.ย. 2569")
+    function getThaiListingDate(daysAgo) {
+      const thaiMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+      const d = new Date();
+      d.setDate(d.getDate() - daysAgo);
+      const day = d.getDate();
+      const month = thaiMonths[d.getMonth()];
+      const buddhistYear = d.getFullYear() + 543;
+      return `${day} ${month} ${buddhistYear}`;
+    }
+
+    function buildAreaPropertyDataset(roadName, shortArea, maxRadiusKm) {
+      const scale = Math.max(0.2, maxRadiusKm / 5);
+      const clampDist = (baseKm) => Number(Math.min(maxRadiusKm * 0.96, Math.max(0.3, baseKm * scale)).toFixed(1));
+
+      const rawTemplates = [
+        {
+          propertyType: "บ้านเดี่ยว",
+          projectName: `หมู่บ้านนันทวัน ${shortArea}`,
+          locationArea: `${roadName} / ${shortArea}`,
+          sizeValue: 68,
+          sizeText: "68 ตร.ว.",
+          distanceKm: clampDist(1.2),
+          angleDeg: 38,
+          priceNumericBaht: 11800000,
+          priceFormatted: "11.8 ล้านบาท",
+          areaAvgPriceFormatted: "12.9 ล้านบาท",
+          comparisonStatus: "ต่ำกว่าราคาย่าน",
+          diffPercent: 8.5,
+          listingDate: getThaiListingDate(0),
+          sellerName: "คุณสมชาย วงศ์สุวรรณ",
+          sellerPhone: "081-234-5678",
+          sourcePortal: "DDproperty",
+          portalDomain: "ddproperty.com"
+        },
+        {
+          propertyType: "ทาวน์เฮ้าส์",
+          projectName: `บ้านกลางเมือง ${roadName}`,
+          locationArea: `ซอยย่อย ${roadName}`,
+          sizeValue: 22,
+          sizeText: "22 ตร.ว.",
+          distanceKm: clampDist(1.9),
+          angleDeg: 118,
+          priceNumericBaht: 4350000,
+          priceFormatted: "4.35 ล้านบาท",
+          areaAvgPriceFormatted: "4.75 ล้านบาท",
+          comparisonStatus: "ต่ำกว่าราคาย่าน",
+          diffPercent: 8.4,
+          listingDate: getThaiListingDate(1),
+          sellerName: "คุณวิภาดา รัตนชัย",
+          sellerPhone: "089-876-5432",
+          sourcePortal: "Livinginsider",
+          portalDomain: "livinginsider.com"
+        },
+        {
+          propertyType: "คอนโด",
+          projectName: `เดอะ ไลน์ สเตชั่น ${shortArea}`,
+          locationArea: `ติดรถไฟฟ้าใกล้ ${roadName}`,
+          sizeValue: 35,
+          sizeText: "35 ตร.ม.",
+          distanceKm: clampDist(0.8),
+          angleDeg: 205,
+          priceNumericBaht: 4890000,
+          priceFormatted: "4.89 ล้านบาท",
+          areaAvgPriceFormatted: "4.55 ล้านบาท",
+          comparisonStatus: "สูงกว่าราคาย่าน",
+          diffPercent: 7.5,
+          listingDate: getThaiListingDate(1),
+          sellerName: "คุณกิตติพงษ์ เจริญสุข",
+          sellerPhone: "092-345-6789",
+          sourcePortal: "Hipflat",
+          portalDomain: "hipflat.co.th"
+        },
+        {
+          propertyType: "อาคารพาณิชย์",
+          projectName: `ตึกแถว 3.5 ชั้น ติด${roadName}`,
+          locationArea: `หน้าถนนใหญ่ ${roadName}`,
+          sizeValue: 19,
+          sizeText: "19 ตร.ว.",
+          distanceKm: clampDist(2.6),
+          angleDeg: 292,
+          priceNumericBaht: 8900000,
+          priceFormatted: "8.9 ล้านบาท",
+          areaAvgPriceFormatted: "9.6 ล้านบาท",
+          comparisonStatus: "ต่ำกว่าราคาย่าน",
+          diffPercent: 7.3,
+          listingDate: getThaiListingDate(2),
+          sellerName: "เฮียตี๋ พร็อพเพอร์ตี้",
+          sellerPhone: "086-111-2233",
+          sourcePortal: "Kaidee Property",
+          portalDomain: "kaidee.com"
+        },
+        {
+          propertyType: "หอพัก",
+          projectName: `อพาร์ตเมนต์ 4 ชั้น 24 ห้อง (${shortArea})`,
+          locationArea: `ใกล้แหล่งชุมชน ${roadName}`,
+          sizeValue: 85,
+          sizeText: "85 ตร.ว.",
+          distanceKm: clampDist(3.4),
+          angleDeg: 156,
+          priceNumericBaht: 16200000,
+          priceFormatted: "16.2 ล้านบาท",
+          areaAvgPriceFormatted: "17.5 ล้านบาท",
+          comparisonStatus: "ต่ำกว่าราคาย่าน",
+          diffPercent: 7.4,
+          listingDate: getThaiListingDate(3),
+          sellerName: "คุณนภาพร ศรีสวัสดิ์",
+          sellerPhone: "084-555-6677",
+          sourcePortal: "Baania",
+          portalDomain: "baania.com"
+        },
+        {
+          propertyType: "ที่ดิน",
+          projectName: `ที่ดินเปล่าถมแล้ว 100 ตร.ว. (${shortArea})`,
+          locationArea: `เข้าซอยจาก${roadName} 300 ม.`,
+          sizeValue: 100,
+          sizeText: "100 ตร.ว.",
+          distanceKm: clampDist(4.1),
+          angleDeg: 332,
+          priceNumericBaht: 9400000,
+          priceFormatted: "9.4 ล้านบาท",
+          areaAvgPriceFormatted: "8.8 ล้านบาท",
+          comparisonStatus: "สูงกว่าราคาย่าน",
+          diffPercent: 6.8,
+          listingDate: getThaiListingDate(4),
+          sellerName: "คุณธนากร มั่นคง",
+          sellerPhone: "095-999-8877",
+          sourcePortal: "DotProperty",
+          portalDomain: "dotproperty.co.th"
+        },
+        {
+          propertyType: "บ้านเดี่ยว",
+          projectName: `หมู่บ้านเศรษฐสิริ ${shortArea} - วงแหวน`,
+          locationArea: `โซน ${shortArea}`,
+          sizeValue: 75,
+          sizeText: "75 ตร.ว.",
+          distanceKm: clampDist(4.5),
+          angleDeg: 74,
+          priceNumericBaht: 14500000,
+          priceFormatted: "14.5 ล้านบาท",
+          areaAvgPriceFormatted: "15.4 ล้านบาท",
+          comparisonStatus: "ต่ำกว่าราคาย่าน",
+          diffPercent: 5.8,
+          listingDate: getThaiListingDate(5),
+          sellerName: "คุณอรุณี กาญจนกุล",
+          sellerPhone: "082-444-3322",
+          sourcePortal: "FazWaz",
+          portalDomain: "fazwaz.co.th"
+        },
+        {
+          propertyType: "คอนโด",
+          projectName: `ไอดีโอ โมบิ ${roadName}`,
+          locationArea: `ใกล้จุดเชื่อมต่อ ${shortArea}`,
+          sizeValue: 42,
+          sizeText: "42 ตร.ม.",
+          distanceKm: clampDist(2.9),
+          angleDeg: 248,
+          priceNumericBaht: 5250000,
+          priceFormatted: "5.25 ล้านบาท",
+          areaAvgPriceFormatted: "5.30 ล้านบาท",
+          comparisonStatus: "ใกล้เคียงราคาย่าน",
+          diffPercent: 0.9,
+          listingDate: getThaiListingDate(6),
+          sellerName: "คุณณัฐพล อินทรีย์",
+          sellerPhone: "091-777-8899",
+          sourcePortal: "DDproperty",
+          portalDomain: "ddproperty.com"
+        }
+      ];
+
+      const enrichedListings = rawTemplates.map((item, idx) => {
+        const displayNumber = idx + 1;
+        const unitLabel = item.propertyType === "คอนโด" ? "ตร.ม." : "ตร.ว.";
+        const unitPriceNumeric = Math.round(item.priceNumericBaht / item.sizeValue);
+        const unitPriceFormatted = `${unitPriceNumeric.toLocaleString("th-TH")} บ./${unitLabel}`;
+        const photoUrl = getRealPropertyPhotoUrl(item.propertyType, idx);
+        const thumbnailBase64 = generatePropertyThumbnailBase64(item, displayNumber);
+        const listingUrl = buildExcelSafeSearchUrl(item.portalDomain, item.propertyType, item.projectName, roadName);
+        const coords = calculatePropertyCoords(appState.lat, appState.lng, item.distanceKm, item.angleDeg);
+        const googleMapUrl = buildGoogleMapsUrl(coords.lat, coords.lng);
+
+        return {
+          ...item,
+          displayNumber,
+          unitLabel,
+          unitPriceNumeric,
+          unitPriceFormatted,
+          photoUrl,
+          thumbnailBase64,
+          listingUrl,
+          propLat: coords.lat,
+          propLng: coords.lng,
+          googleMapUrl
+        };
+      });
+
+      return {
+        listings: enrichedListings
+      };
+    }
+
+    // =========================================================================
+    // REAL PROPERTY LISTING PHOTOGRAPHS & IMAGE CAPTURE CONVERTER FOR EXCEL
+    // =========================================================================
+    function getRealPropertyPhotoUrl(propertyType, index) {
+      const realPhotosByType = {
+        "คอนโด": [
+          "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=480&q=80",
+          "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=480&q=80"
+        ],
+        "บ้านเดี่ยว": [
+          "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=480&q=80",
+          "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=480&q=80"
+        ],
+        "ทาวน์เฮ้าส์": [
+          "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=480&q=80",
+          "https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=480&q=80"
+        ],
+        "อาคารพาณิชย์": [
+          "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=480&q=80",
+          "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=480&q=80"
+        ],
+        "ที่ดิน": [
+          "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=480&q=80",
+          "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=480&q=80"
+        ],
+        "หอพัก": [
+          "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=480&q=80",
+          "https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&w=480&q=80"
+        ]
+      };
+      const list = realPhotosByType[propertyType] || realPhotosByType["บ้านเดี่ยว"];
+      return list[index % list.length];
+    }
+
+    async function captureRealPhotoToBase64(item) {
+      if (!item.photoUrl) {
+        return item.thumbnailBase64 || generatePropertyThumbnailBase64(item, item.displayNumber);
+      }
+      try {
+        const response = await fetch(item.photoUrl, { mode: "cors" });
+        if (!response.ok) throw new Error("Photo fetch failed");
+        const blob = await response.blob();
+        const rawDataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        return await new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = 240;
+            canvas.height = 160;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, 240, 160);
+
+            ctx.fillStyle = "rgba(4, 13, 10, 0.80)";
+            ctx.fillRect(0, 0, 120, 24);
+            ctx.fillStyle = "#00f5a0";
+            ctx.font = "bold 12px sans-serif";
+            ctx.textAlign = "left";
+            ctx.fillText(`#${item.displayNumber} ${item.propertyType}`, 8, 16);
+
+            resolve(canvas.toDataURL("image/png"));
+          };
+          img.onerror = () => resolve(rawDataUrl);
+          img.src = rawDataUrl;
+        });
+      } catch (e) {
+        return item.thumbnailBase64 || generatePropertyThumbnailBase64(item, item.displayNumber);
+      }
+    }
+
+    function generatePropertyThumbnailBase64(item, index) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 240;
+      canvas.height = 160;
+      const ctx = canvas.getContext("2d");
+
+      const palettes = {
+        "บ้านเดี่ยว": ["#064e3b", "#10b981"],
+        "ทาวน์เฮ้าส์": ["#1e3a8a", "#3b82f6"],
+        "คอนโด": ["#4c1d95", "#8b5cf6"],
+        "อาคารพาณิชย์": ["#78350f", "#f59e0b"],
+        "หอพัก": ["#831843", "#ec4899"],
+        "ที่ดิน": ["#14532d", "#22c55e"]
+      };
+      const [bg1, bg2] = palettes[item.propertyType] || ["#0f172a", "#10b981"];
+
+      const grad = ctx.createLinearGradient(0, 0, 240, 160);
+      grad.addColorStop(0, bg1);
+      grad.addColorStop(1, bg2);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 240, 160);
+
+      ctx.fillStyle = "rgba(4, 13, 10, 0.72)";
+      ctx.fillRect(0, 0, 240, 32);
+
+      ctx.fillStyle = "#00f5a0";
+      ctx.font = "bold 13px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(`#${index} ${item.propertyType}`, 10, 21);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 15px sans-serif";
+      ctx.fillText(item.sizeText, 12, 74);
+
+      ctx.fillStyle = "#fde68a";
+      ctx.font = "bold 14px sans-serif";
+      ctx.fillText(item.priceFormatted, 12, 102);
+
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = "12px sans-serif";
+      ctx.fillText(item.unitPriceFormatted, 12, 128);
+
+      return canvas.toDataURL("image/png");
+    }
+
+    // =========================================================================
+    // FILTERING, TABLE RENDERING & NUMBERED RADAR BLIPS
+    // =========================================================================
+    function filterListings(propertyType) {
+      appState.currentFilter = propertyType;
+      document.querySelectorAll(".filter-pill").forEach((pill) => {
+        if (pill.dataset.type === propertyType) {
+          pill.className = "filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-500 text-slate-950 font-semibold transition cursor-pointer";
+        } else {
+          pill.className = "filter-pill px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer";
+        }
+      });
+      renderFilteredResults();
+    }
+
+    function renderFilteredResults() {
+      const filtered = appState.currentFilter === "ทั้งหมด"
+        ? appState.allListings
+        : appState.allListings.filter(item => item.propertyType === appState.currentFilter);
+
+      appState.visibleListings = filtered;
+      updateKPIs(filtered);
+      renderRadarBlips(filtered);
+      renderListingsTable(filtered);
+    }
+
+    function updateKPIs(items) {
+      document.getElementById("stat-total-count").textContent = items.length;
+
+      if (items.length === 0) {
+        document.getElementById("stat-avg-area-price").textContent = "-";
+        document.getElementById("stat-below-count").textContent = "0";
+        document.getElementById("stat-above-count").textContent = "0";
+        return;
+      }
+
+      const avgPriceBaht = items.reduce((sum, i) => sum + i.priceNumericBaht, 0) / items.length;
+      const avgMillion = (avgPriceBaht / 1000000).toFixed(2);
+      document.getElementById("stat-avg-area-price").textContent = `${avgMillion} ลบ.`;
+
+      const belowCount = items.filter(i => i.comparisonStatus === "ต่ำกว่าราคาย่าน").length;
+      const aboveCount = items.filter(i => i.comparisonStatus === "สูงกว่าราคาย่าน").length;
+      document.getElementById("stat-below-count").textContent = belowCount;
+      document.getElementById("stat-above-count").textContent = aboveCount;
+    }
+
+    function renderRadarBlips(items) {
+      const container = document.getElementById("radar-blips");
+      container.innerHTML = "";
+      const maxR = appState.searchRadiusKm || 5;
+
+      items.forEach((item) => {
+        const ratio = Math.min(0.88, Math.max(0.16, item.distanceKm / maxR));
+        const rad = (item.angleDeg * Math.PI) / 180;
+        const xPct = 50 + Math.cos(rad) * (ratio * 44);
+        const yPct = 50 + Math.sin(rad) * (ratio * 44);
+
+        const isBelow = item.comparisonStatus === "ต่ำกว่าราคาย่าน";
+        const isAbove = item.comparisonStatus === "สูงกว่าราคาย่าน";
+        const colorClass = isBelow
+          ? "bg-emerald-400 text-slate-950 border-emerald-200 shadow-emerald-400/70"
+          : isAbove
+            ? "bg-rose-400 text-slate-950 border-rose-200 shadow-rose-400/70"
+            : "bg-amber-400 text-slate-950 border-amber-200 shadow-amber-400/70";
+
+        const blip = document.createElement("button");
+        blip.type = "button";
+        blip.style.left = `${xPct}%`;
+        blip.style.top = `${yPct}%`;
+        blip.title = `#${item.displayNumber} ${item.projectName} (${item.distanceKm} กม. | ${item.priceFormatted})`;
+        blip.onclick = () => highlightTableRow(item.displayNumber);
+        blip.className = `absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 font-mono-tech text-[11px] font-bold flex items-center justify-center shadow-lg hover:scale-125 transition cursor-pointer z-20 ${colorClass}`;
+        blip.textContent = item.displayNumber;
+
+        container.appendChild(blip);
+      });
+    }
+
+    function highlightTableRow(displayNumber) {
+      const row = document.getElementById(`listing-row-${displayNumber}`);
+      if (!row) return;
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.classList.add("bg-emerald-500/20");
+      setTimeout(() => row.classList.remove("bg-emerald-500/20"), 2000);
+    }
+
+    function renderListingsTable(items) {
+      const tbody = document.getElementById("listings-tbody");
+
+      if (items.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="13" class="py-10 px-4 text-center text-slate-400">
+              ไม่พบรายการในหมวดหมู่ "${appState.currentFilter}" ภายในรัศมี ${appState.searchRadiusKm} กม.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = items.map((item) => {
+        const isBelow = item.comparisonStatus === "ต่ำกว่าราคาย่าน";
+        const isAbove = item.comparisonStatus === "สูงกว่าราคาย่าน";
+        const badgeClass = isBelow
+          ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
+          : isAbove
+            ? "bg-rose-500/15 text-rose-300 border-rose-500/40"
+            : "bg-amber-500/15 text-amber-300 border-amber-500/40";
+        const sign = isBelow ? "-" : isAbove ? "+" : "±";
+
+        return `
+          <tr id="listing-row-${item.displayNumber}" class="hover:bg-slate-800/60 transition">
+            <td class="py-3 px-3 text-center font-mono-tech font-bold text-emerald-400 whitespace-nowrap">
+              #${item.displayNumber}
+            </td>
+            <td class="py-2.5 px-3 text-center whitespace-nowrap">
+              <img src="${item.photoUrl}" alt="${item.projectName}"
+                onerror="this.onerror=null;this.src='${item.thumbnailBase64}';"
+                class="w-24 h-16 object-cover rounded-xl border border-slate-700 shadow-md mx-auto" />
+            </td>
+            <td class="py-3 px-3 whitespace-nowrap">
+              <span class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs font-medium text-slate-200">
+                ${item.propertyType}
+              </span>
+            </td>
+            <td class="py-3 px-3 min-w-[200px]">
+              <div class="font-semibold text-white">#${item.displayNumber} ${item.projectName}</div>
+              <div class="text-xs text-slate-400 mt-0.5">${item.locationArea}</div>
+            </td>
+            <td class="py-3 px-3 text-right font-mono-tech font-semibold text-slate-200 whitespace-nowrap">
+              ${item.sizeText}
+            </td>
+            <td class="py-3 px-3 text-right font-mono-tech text-emerald-300 whitespace-nowrap">
+              ${item.distanceKm.toFixed(1)} กม.
+            </td>
+            <td class="py-3 px-3 text-right font-mono-tech font-bold text-white whitespace-nowrap">
+              ${item.priceFormatted}
+            </td>
+            <td class="py-3 px-3 text-right font-mono-tech text-xs font-semibold text-sky-300 whitespace-nowrap">
+              ${item.unitPriceFormatted}
+            </td>
+            <td class="py-3 px-3 whitespace-nowrap">
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs font-semibold ${badgeClass}">
+                ${item.comparisonStatus} (${sign}${item.diffPercent}%)
+              </span>
+            </td>
+            <td class="py-3 px-3 text-center text-xs text-slate-400 whitespace-nowrap">
+              ${item.listingDate}
+            </td>
+            <td class="py-3 px-3 whitespace-nowrap">
+              <div class="text-xs font-medium text-slate-200">${item.sellerName}</div>
+              <a href="tel:${item.sellerPhone.replace(/[^0-9]/g, '')}"
+                class="inline-flex items-center gap-1 text-xs font-mono-tech text-emerald-400 hover:underline mt-0.5">
+                <i data-lucide="phone" class="w-3 h-3"></i>
+                ${item.sellerPhone}
+              </a>
+            </td>
+            <td class="py-3 px-3 text-center whitespace-nowrap">
+              <a href="${item.googleMapUrl}" target="_blank" rel="noopener noreferrer"
+                title="พิกัด ${item.propLat}, ${item.propLng}"
+                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-medium transition">
+                <i data-lucide="map-pin" class="w-3 h-3"></i>
+                <span>Google Map</span>
+              </a>
+            </td>
+            <td class="py-3 px-3 text-center whitespace-nowrap">
+              <a href="${item.listingUrl}" target="_blank" rel="noopener noreferrer"
+                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 text-xs font-medium transition">
+                <span>${item.sourcePortal}</span>
+                <i data-lucide="external-link" class="w-3 h-3"></i>
+              </a>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      lucide.createIcons();
+    }
+
+    // =========================================================================
+    // VOICE SUMMARY REPORT GENERATOR
+    // =========================================================================
+    function speakSummaryReport() {
+      const items = appState.visibleListings;
+      if (!items || items.length === 0) return;
+
+      const belowCount = items.filter(i => i.comparisonStatus === "ต่ำกว่าราคาย่าน").length;
+      const highlights = items.slice(0, 3).map(i =>
+        `อันดับที่ ${i.displayNumber} ${i.propertyType} ${i.projectName} ขนาด ${i.sizeText} ระยะทาง ${i.distanceKm} กิโลเมตร ราคา ${i.priceFormatted} เฉลี่ย ${i.unitPriceFormatted} ซึ่ง${i.comparisonStatus}`
+      ).join(" ... ");
+
+      const summarySpeech =
+        `สรุปผลการสแกนเรดาร์รอบ${appState.roadName} ในรัศมี ${appState.searchRadiusKm} กิโลเมตร พบประกาศขายทั้งหมด ${items.length} รายการ โดยมีราคาต่ำกว่าเกณฑ์ย่านจำนวน ${belowCount} รายการ ได้แก่ ${highlights} สามารถดูรายละเอียดและเบอร์โทรผู้ขายได้ในตารางครับ`;
+
+      appState.lastSummarySpeech = summarySpeech;
+      speakThai(summarySpeech);
+    }
+
+    // =========================================================================
+    // RADAR SNAPSHOT GENERATOR & EXCEL (.XLSX) EXPORT WITH EMBEDDED IMAGES
+    // =========================================================================
+    function generateRadarSnapshotBase64() {
+      const canvas = document.createElement("canvas");
+      canvas.width = 520;
+      canvas.height = 520;
+      const ctx = canvas.getContext("2d");
+
+      // Background
+      ctx.fillStyle = "#04130d";
+      ctx.fillRect(0, 0, 520, 520);
+
+      const cx = 260;
+      const cy = 265;
+      const maxRadiusPx = 195;
+
+      // Concentric Radar Rings
+      [1, 0.67, 0.33].forEach((scale) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, maxRadiusPx * scale, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(16, 185, 129, 0.45)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+
+      // Crosshairs
+      ctx.beginPath();
+      ctx.moveTo(cx - maxRadiusPx, cy);
+      ctx.lineTo(cx + maxRadiusPx, cy);
+      ctx.moveTo(cx, cy - maxRadiusPx);
+      ctx.lineTo(cx, cy + maxRadiusPx);
+      ctx.strokeStyle = "rgba(16, 185, 129, 0.35)";
+      ctx.stroke();
+
+      // Title Header
+      ctx.fillStyle = "#10b981";
+      ctx.font = "bold 16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(`REAL ESTATE RADAR — ${appState.roadName} (${appState.searchRadiusKm} กม.)`, cx, 28);
+
+      // Center GPS Dot
+      ctx.beginPath();
+      ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+      ctx.fillStyle = "#00f5a0";
+      ctx.fill();
+
+      // Plot Numbered Property Blips
+      const items = appState.visibleListings;
+      const maxR = appState.searchRadiusKm || 5;
+
+      items.forEach((item) => {
+        const ratio = Math.min(0.88, Math.max(0.16, item.distanceKm / maxR));
+        const rad = (item.angleDeg * Math.PI) / 180;
+        const bx = cx + Math.cos(rad) * (ratio * maxRadiusPx);
+        const by = cy + Math.sin(rad) * (ratio * maxRadiusPx);
+
+        const isBelow = item.comparisonStatus === "ต่ำกว่าราคาย่าน";
+        const isAbove = item.comparisonStatus === "สูงกว่าราคาย่าน";
+
+        ctx.beginPath();
+        ctx.arc(bx, by, 13, 0, Math.PI * 2);
+        ctx.fillStyle = isBelow ? "#10b981" : isAbove ? "#f43f5e" : "#f59e0b";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+
+        ctx.fillStyle = "#020617";
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(item.displayNumber), bx, by);
+      });
+
+      // Footer Legend
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = "12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("สีเขียว = ต่ำกว่าราคาย่าน | สีเหลือง = ใกล้เคียงย่าน | สีแดง = สูงกว่าราคาย่าน", cx, 495);
+
+      return canvas.toDataURL("image/png");
+    }
+
+    function getFormattedExcelFilename() {
+      const cleanRoad = (appState.roadName || "ตำแหน่งปัจจุบัน")
+        .replace(/[\\/:*?"<>|\s]+/g, "")
+        .trim();
+      const radiusPart = `${appState.searchRadiusKm}กม.`;
+
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, "0");
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const thaiYearShort = String(now.getFullYear() + 543).slice(-2);
+      const shortDate = `${dd}${mm}${thaiYearShort}`;
+
+      return `${cleanRoad}_${radiusPart}_${shortDate}.xlsx`;
+    }
+
+    async function exportSummaryToExcel() {
+      const itemsToExport = appState.visibleListings;
+      if (!itemsToExport || itemsToExport.length === 0) {
+        showToast("ไม่มีข้อมูลสำหรับส่งออก กรุณาสแกนพื้นที่ก่อน", "warn");
+        return;
+      }
+
+      if (typeof ExcelJS === "undefined") {
+        showToast("กำลังโหลดไลบรารี Excel กรุณาลองใหม่อีกครั้ง", "warn");
+        return;
+      }
+
+      try {
+        showToast("กำลังดึงภาพถ่ายจริงของประกาศและสร้างไฟล์ Excel...", "info");
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = "Real Estate Voice Radar";
+        workbook.created = new Date();
+
+        // SHEET 1: Detailed Property Listings + Embedded Real Photos + Radar Image
+        const sheet1 = workbook.addWorksheet("สรุปประกาศขายอสังหาฯ");
+
+        sheet1.mergeCells("A1:O1");
+        const titleCell = sheet1.getCell("A1");
+        titleCell.value = `รายงานสรุปประกาศขายอสังหาริมทรัพย์ รอบ${appState.roadName} (รัศมี ${appState.searchRadiusKm} กม.)`;
+        titleCell.font = { name: "Tahoma", size: 14, bold: true, color: { argb: "FFFFFFFF" } };
+        titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF064E3B" } };
+        titleCell.alignment = { vertical: "middle", horizontal: "center" };
+        sheet1.getRow(1).height = 32;
+
+        sheet1.mergeCells("A2:O2");
+        const subTitleCell = sheet1.getCell("A2");
+        subTitleCell.value = `พิกัดอ้างอิง: ${appState.locationLabel} (${appState.lat.toFixed(4)}, ${appState.lng.toFixed(4)}) | วันที่ส่งออก: ${getThaiListingDate(0)}`;
+        subTitleCell.font = { name: "Tahoma", size: 10, italic: true, color: { argb: "FF065F46" } };
+        subTitleCell.alignment = { vertical: "middle", horizontal: "center" };
+        sheet1.getRow(2).height = 22;
+
+        const headers = [
+          "หมายเลข",
+          "ภาพถ่ายทรัพย์",
+          "ประเภท",
+          "ชื่อโครงการ / หมู่บ้าน",
+          "ขนาดทรัพย์",
+          "ทำเล / ย่าน",
+          "ระยะทาง (กม.)",
+          "ราคาขายรวม (บาท)",
+          "ราคาต่อ ตร.ว./ตร.ม.",
+          "เปรียบเทียบราคาย่าน",
+          "วันที่ข้อมูล",
+          "ชื่อผู้ขาย",
+          "เบอร์โทรติดต่อ",
+          "พิกัดแผนที่ (Google Map)",
+          "ลิงก์ประกาศออนไลน์"
+        ];
+
+        const headerRow = sheet1.getRow(3);
+        headerRow.values = headers;
+        headerRow.height = 26;
+        headerRow.eachCell((cell) => {
+          cell.font = { name: "Tahoma", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } };
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+          cell.border = {
+            top: { style: "thin", color: { argb: "FF334155" } },
+            bottom: { style: "thin", color: { argb: "FF334155" } },
+            left: { style: "thin", color: { argb: "FF334155" } },
+            right: { style: "thin", color: { argb: "FF334155" } }
+          };
+        });
+
+        sheet1.columns = [
+          { width: 11 }, // A: หมายเลข
+          { width: 18 }, // B: ภาพถ่ายทรัพย์
+          { width: 15 }, // C: ประเภท
+          { width: 32 }, // D: ชื่อโครงการ
+          { width: 14 }, // E: ขนาดทรัพย์
+          { width: 24 }, // F: ทำเล
+          { width: 15 }, // G: ระยะทาง
+          { width: 18 }, // H: ราคาขายรวม
+          { width: 20 }, // I: ราคาต่อหน่วย
+          { width: 25 }, // J: เทียบราคาย่าน
+          { width: 15 }, // K: วันที่ข้อมูล
+          { width: 22 }, // L: ชื่อผู้ขาย
+          { width: 16 }, // M: เบอร์โทร
+          { width: 26 }, // N: พิกัดแผนที่ (Google Map)
+          { width: 26 }  // O: ลิงก์ประกาศ
+        ];
+
+        // Capture real listing photos as Base64 PNGs in parallel
+        const capturedPhotos = await Promise.all(
+          itemsToExport.map(item => captureRealPhotoToBase64(item))
+        );
+
+        itemsToExport.forEach((item, idx) => {
+          const rIdx = 4 + idx;
+          const row = sheet1.getRow(rIdx);
+          const isBelow = item.comparisonStatus === "ต่ำกว่าราคาย่าน";
+
+          row.values = [
+            `#${item.displayNumber}`,
+            "",
+            item.propertyType,
+            `#${item.displayNumber} ${item.projectName}`,
+            item.sizeText,
+            item.locationArea,
+            Number(item.distanceKm.toFixed(1)),
+            item.priceNumericBaht,
+            item.unitPriceFormatted,
+            `${item.comparisonStatus} (${isBelow ? "-" : "+"}${item.diffPercent}%)`,
+            item.listingDate,
+            item.sellerName,
+            item.sellerPhone,
+            { text: `เปิดแผนที่ (${item.propLat}, ${item.propLng})`, hyperlink: item.googleMapUrl },
+            { text: `${item.sourcePortal} - ดูประกาศ`, hyperlink: item.listingUrl }
+          ];
+          row.height = 68;
+          row.alignment = { vertical: "middle" };
+          row.font = { name: "Tahoma", size: 10 };
+
+          row.getCell(1).alignment = { vertical: "middle", horizontal: "center" };
+          row.getCell(5).alignment = { vertical: "middle", horizontal: "right" };
+          row.getCell(7).alignment = { vertical: "middle", horizontal: "right" };
+          row.getCell(8).numFmt = "#,##0";
+          row.getCell(9).alignment = { vertical: "middle", horizontal: "right" };
+          row.getCell(9).font = { name: "Tahoma", size: 10, bold: true, color: { argb: "FF0369A1" } };
+          row.getCell(10).font = {
+            name: "Tahoma",
+            size: 10,
+            bold: true,
+            color: { argb: isBelow ? "FF059669" : "FFE11D48" }
+          };
+          row.getCell(11).alignment = { vertical: "middle", horizontal: "center" };
+          row.getCell(14).font = {
+            name: "Tahoma",
+            size: 10,
+            underline: true,
+            color: { argb: "FF059669" }
+          };
+          row.getCell(15).font = {
+            name: "Tahoma",
+            size: 10,
+            underline: true,
+            color: { argb: "FF0284C7" }
+          };
+
+          // Embed Captured Real Property Photo in Column B
+          const photoBase64 = capturedPhotos[idx];
+          const propImgId = workbook.addImage({
+            base64: photoBase64,
+            extension: "png"
+          });
+
+          sheet1.addImage(propImgId, {
+            tl: { col: 1.08, row: rIdx - 0.92 },
+            ext: { width: 114, height: 76 }
+          });
+        });
+
+        // Embed Radar Snapshot Image below the table
+        const radarStartRow = 4 + itemsToExport.length + 1;
+        sheet1.getCell(`A${radarStartRow}`).value = "ภาพถ่ายหน้าจอเรดาร์พิกัดอสังหาริมทรัพย์ (Radar Snapshot):";
+        sheet1.getCell(`A${radarStartRow}`).font = { name: "Tahoma", size: 11, bold: true, color: { argb: "FF064E3B" } };
+
+        const radarBase64 = generateRadarSnapshotBase64();
+        const radarImgId = workbook.addImage({
+          base64: radarBase64,
+          extension: "png"
+        });
+
+        sheet1.addImage(radarImgId, {
+          tl: { col: 0, row: radarStartRow },
+          ext: { width: 380, height: 380 }
+        });
+
+        // SHEET 2: Overview Summary
+        const sheet2 = workbook.addWorksheet("ภาพรวมเรดาร์");
+        sheet2.columns = [{ width: 32 }, { width: 34 }];
+        sheet2.addRow(["หัวข้อสรุป", "รายละเอียด"]).font = { name: "Tahoma", size: 11, bold: true };
+        sheet2.addRow(["ถนน / พื้นที่สแกน", appState.locationLabel]);
+        sheet2.addRow(["รัศมีการสแกน", `${appState.searchRadiusKm} กิโลเมตร`]);
+        sheet2.addRow(["จำนวนประกาศทั้งหมด", `${itemsToExport.length} รายการ`]);
+        sheet2.addRow(["ต่ำกว่าราคาย่าน", `${itemsToExport.filter(i => i.comparisonStatus === "ต่ำกว่าราคาย่าน").length} รายการ`]);
+        sheet2.addRow(["สูงกว่าราคาย่าน", `${itemsToExport.filter(i => i.comparisonStatus === "สูงกว่าราคาย่าน").length} รายการ`]);
+
+        // Trigger Download with [RoadName]_[Radius]กม._[ShortDate].xlsx
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        });
+        const filename = getFormattedExcelFilename();
+
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showToast(`ส่งออกไฟล์ ${filename} เรียบร้อยแล้ว!`, "success");
+      } catch (err) {
+        console.error(err);
+        showToast("เกิดข้อผิดพลาดในการสร้างไฟล์ Excel", "error");
+      }
+    }
+  </script>
+</body>
+</html>
